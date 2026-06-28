@@ -39,28 +39,36 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
-
             APP_DIR=/home/ubuntu/app
-
+            
+            # Ensure directory exists and navigate to it
+            mkdir -p $APP_DIR
             cd $APP_DIR
-
-            # Stop old application
-            pkill -f 'java -jar' || true
-            sleep 2
-
+            
+            # Stop old application gracefully
+            echo "Stopping old application..."
+            pkill -f 'java.*-jar' || true
+            sleep 5
+            
             # Find the JAR file
-            JAR_FILE=$(ls *.jar | head -n 1)
-
+            JAR_FILE=$(ls *.jar 2>/dev/null | head -n 1)
+            
+            if [ -z "$JAR_FILE" ]; then
+              echo "Error: No JAR file found!"
+              exit 1
+            fi
+            
             echo "Deploying $JAR_FILE"
-
-            # Start new application
-            nohup java -jar "$JAR_FILE" > app.log 2>&1 < /dev/null &
-
-            sleep 10
-
+            
+            # Start new application with memory limits to prevent EC2 freezing
+            # Output is redirected to prevent SSH from hanging
+            nohup java -Xmx256m -Xms256m -jar "$JAR_FILE" > app.log 2>&1 < /dev/null &
+            
+            # Give it a moment to start
+            sleep 5
+            
             echo "Running Java processes:"
-            ps -ef | grep java | grep -v grep
-
-            echo "Application log:"
-            tail -20 app.log
+            ps -ef | grep java | grep -v grep || echo "No java process running."
+            
+            echo "Application log (first few lines):"
+            head -n 20 app.log
