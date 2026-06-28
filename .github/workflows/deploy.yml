@@ -39,5 +39,28 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
+
+            APP_DIR=/home/ubuntu/app
+
+            cd $APP_DIR
+
+            # Stop old application
             pkill -f 'java -jar' || true
-            nohup java -jar /home/ubuntu/app/*.jar > app.log 2>&1 &
+            sleep 2
+
+            # Find the JAR file
+            JAR_FILE=$(ls *.jar | head -n 1)
+
+            echo "Deploying $JAR_FILE"
+
+            # Start new application
+            nohup java -jar "$JAR_FILE" > app.log 2>&1 < /dev/null &
+
+            sleep 10
+
+            echo "Running Java processes:"
+            ps -ef | grep java | grep -v grep
+
+            echo "Application log:"
+            tail -20 app.log
